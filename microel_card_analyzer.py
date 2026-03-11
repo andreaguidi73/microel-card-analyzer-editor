@@ -1,4 +1,8 @@
 import sys
+import argparse
+
+from nfc_file_handler import NFCFile
+
 
 def color_string(input_string):
     colors = ["\033[96m", "\033[36m", "\033[35m", "\033[34m", "\033[33m"]
@@ -84,26 +88,79 @@ def modify_parameter(parsed_data):
     full_string = ''.join(segment for _, segment, _, _, _ in parsed_data)
     return color_string(full_string)
 
+def build_arg_parser():
+    parser = argparse.ArgumentParser(
+        description="MicroEL Card Analyzer and Editor"
+    )
+    parser.add_argument(
+        "hex_string",
+        nargs="?",
+        help="32-character hexadecimal string to analyse (optional)"
+    )
+    parser.add_argument(
+        "-f", "--file",
+        metavar="FILE",
+        help="Path to a Flipper Zero .nfc file"
+    )
+    parser.add_argument(
+        "-b", "--block",
+        type=int,
+        default=0,
+        metavar="BLOCK",
+        help="Block number to read from the .nfc file (default: 0)"
+    )
+    return parser
+
+
 def main():
-    if len(sys.argv) > 1:
-        input_string = sys.argv[1]
+    parser = build_arg_parser()
+    args = parser.parse_args()
+
+    nfc_file = None
+
+    if args.file:
+        try:
+            nfc_file = NFCFile.from_file(args.file)
+        except FileNotFoundError:
+            print(f"Error: File not found: {args.file}")
+            return
+        except Exception as exc:
+            print(f"Error reading .nfc file: {exc}")
+            return
+
+        input_string = nfc_file.get_block_hex(args.block)
+        if input_string is None:
+            print(f"Error: Block {args.block} not found in {args.file}")
+            return
+        print(f"Loaded file: {args.file}  (Block {args.block})")
+    elif args.hex_string:
+        input_string = args.hex_string
     else:
         input_string = input("Please enter the string to parse: ")
-    
+
     if len(input_string) != 32:
         print("Error: The input string must be exactly 32 characters long.")
         return
-    
+
     parsed_data = color_string(input_string)
-    
+
     while True:
         print_data(parsed_data)
-        
+
         choice = input("\nDo you want to modify a parameter? (y/n): ").lower()
         if choice != 'y':
             break
-        
+
         parsed_data = modify_parameter(parsed_data)
+
+    if nfc_file is not None:
+        save_choice = input("\nDo you want to save changes back to the .nfc file? (y/n): ").lower()
+        if save_choice == 'y':
+            new_hex = ''.join(segment for _, segment, _, _, _ in parsed_data)
+            nfc_file.set_block_hex(new_hex, args.block)
+            nfc_file.save(args.file)
+            print(f"Saved: {args.file}")
+
 
 if __name__ == "__main__":
     main()
