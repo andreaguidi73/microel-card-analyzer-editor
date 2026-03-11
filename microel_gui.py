@@ -73,6 +73,7 @@ COLOR_PALETTE = [
 
 APP_TITLE = "MicroEL Card Analyzer & Editor"
 MAX_UNDO = 50
+STATUS_MESSAGE_TIMEOUT_MS = 4000
 
 SHORTCUTS_HELP = (
     "Ctrl+N  New    Ctrl+O  Open    Ctrl+S  Save    "
@@ -495,7 +496,7 @@ class MicroELApp(tk.Tk):
             font=("Segoe UI", 16), padx=6
         )
         self._state_dot.pack(side=tk.RIGHT, padx=(0, 14))
-        _Tooltip(self._state_dot, "Green = saved  |  Orange = unsaved changes  |  Grey = no file")
+        _Tooltip(self._state_dot, "Green = saved  ·  Orange = unsaved changes  ·  Grey = no file")
 
         # ── Top toolbar: file info + block selector ───────────────────
         toolbar = ttk.LabelFrame(self, text="  File & Block  ", padding=(10, 6))
@@ -675,11 +676,11 @@ class MicroELApp(tk.Tk):
         row += 1
 
         # Error / validation label
-        self._error_label = tk.Label(
+        self._feedback_label = tk.Label(
             edit_outer, text="", fg=THEME["red"], bg=bg,
             wraplength=220, font=("Segoe UI", 9), justify=tk.LEFT
         )
-        self._error_label.grid(row=row, column=0, columnspan=2, sticky=tk.W)
+        self._feedback_label.grid(row=row, column=0, columnspan=2, sticky=tk.W)
         row += 1
 
         ttk.Separator(edit_outer, orient=tk.HORIZONTAL).grid(
@@ -1047,7 +1048,7 @@ class MicroELApp(tk.Tk):
             self._input_var.set(inv)
         else:
             self._input_var.set(str(dec))
-        self._error_label.config(text="")
+        self._feedback_label.config(text="")
 
     def _on_format_changed(self):
         name = self._param_var.get()
@@ -1072,7 +1073,7 @@ class MicroELApp(tk.Tk):
             self._preview_hex.config(text=f"HEX:  {hex_val}", fg=color)
             self._preview_inv.config(text=f"Inv:  {inv_val}", fg=color)
             self._preview_dec.config(text=f"Dec:  {dec_val}", fg=color)
-            self._error_label.config(text="")
+            self._feedback_label.config(text="")
         except Exception:
             dim = THEME["subtext"]
             self._preview_hex.config(text="HEX:  —", fg=dim)
@@ -1089,15 +1090,15 @@ class MicroELApp(tk.Tk):
         try:
             new_parsed = apply_edit(self._parsed_data, idx, value, fmt)
         except ValueError as exc:
-            self._error_label.config(
-                text=f"⚠  {exc}", fg=THEME["red"])
+            self._feedback_label.config(
+                text=f"Error: {exc}", fg=THEME["red"])
             return
 
         self._push_undo()
         self._parsed_data = new_parsed
         self._modified = True
         self._refresh_display()
-        self._error_label.config(text="✔  Applied", fg=THEME["green"])
+        self._feedback_label.config(text="✔  Applied", fg=THEME["green"])
         self._update_title()
         self._update_status()
 
@@ -1184,7 +1185,7 @@ class MicroELApp(tk.Tk):
     def _set_status(self, message):
         """Temporarily override the status bar message."""
         self._status_var.set(message)
-        self.after(4000, self._update_status)
+        self.after(STATUS_MESSAGE_TIMEOUT_MS, self._update_status)
 
     # ------------------------------------------------------------------
     # Quit
