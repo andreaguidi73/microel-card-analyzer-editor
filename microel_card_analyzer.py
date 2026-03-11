@@ -1,7 +1,25 @@
+import os
 import sys
 import argparse
 
 from nfc_file_handler import NFCFile
+from mct_file_handler import MCTFile
+
+
+def load_card_file(path):
+    """Load a card file from *path*, auto-detecting format from extension.
+
+    Returns an NFCFile or MCTFile instance.
+    Raises ValueError for unsupported extensions.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".nfc":
+        return NFCFile.from_file(path)
+    if ext == ".mct":
+        return MCTFile.from_file(path)
+    raise ValueError(
+        f"Unsupported file format '{ext}'. Supported formats: .nfc, .mct"
+    )
 
 
 def color_string(input_string):
@@ -100,7 +118,7 @@ def build_arg_parser():
     parser.add_argument(
         "-f", "--file",
         metavar="FILE",
-        help="Path to a Flipper Zero .nfc file"
+        help="Path to a Flipper Zero .nfc or MIFARE Classic Tool .mct file"
     )
     parser.add_argument(
         "-b", "--block",
@@ -120,12 +138,15 @@ def main():
 
     if args.file:
         try:
-            nfc_file = NFCFile.from_file(args.file)
+            nfc_file = load_card_file(args.file)
         except FileNotFoundError:
             print(f"Error: File not found: {args.file}")
             return
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            return
         except Exception as exc:
-            print(f"Error reading .nfc file: {exc}")
+            print(f"Error reading file: {exc}")
             return
 
         input_string = nfc_file.get_block_hex(args.block)
@@ -154,7 +175,7 @@ def main():
         parsed_data = modify_parameter(parsed_data)
 
     if nfc_file is not None:
-        save_choice = input("\nDo you want to save changes back to the .nfc file? (y/n): ").lower()
+        save_choice = input("\nDo you want to save changes back to the file? (y/n): ").lower()
         if save_choice == 'y':
             new_hex = ''.join(segment for _, segment, _, _, _ in parsed_data)
             nfc_file.set_block_hex(new_hex, args.block)

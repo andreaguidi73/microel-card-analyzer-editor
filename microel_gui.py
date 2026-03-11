@@ -12,7 +12,8 @@ import copy
 import os
 
 from nfc_file_handler import NFCFile
-from microel_card_analyzer import color_string
+from mct_file_handler import MCTFile
+from microel_card_analyzer import color_string, load_card_file
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -431,7 +432,7 @@ class MicroELApp(tk.Tk):
         file_menu = _menu("File")
         file_menu.add_command(label="New (blank data)", command=self._new_file,
                               accelerator="Ctrl+N")
-        file_menu.add_command(label="Open .nfc…", command=self._open_file,
+        file_menu.add_command(label="Open…", command=self._open_file,
                               accelerator="Ctrl+O")
         file_menu.add_separator()
         file_menu.add_command(label="Save", command=self._save_file,
@@ -784,18 +785,26 @@ class MicroELApp(tk.Tk):
         if not self._confirm_discard():
             return
         path = filedialog.askopenfilename(
-            title="Open Flipper Zero NFC file",
-            filetypes=[("NFC files", "*.nfc"), ("All files", "*.*")]
+            title="Open card file",
+            filetypes=[
+                ("Card files", "*.nfc *.mct"),
+                ("NFC files", "*.nfc"),
+                ("MCT files", "*.mct"),
+                ("All files", "*.*"),
+            ]
         )
         if not path:
             return
         try:
-            nfc = NFCFile.from_file(path)
+            card = load_card_file(path)
+        except ValueError as exc:
+            messagebox.showerror("Unsupported Format", str(exc))
+            return
         except Exception as exc:
             messagebox.showerror("Error", f"Could not read file:\n{exc}")
             return
 
-        self._nfc_file = nfc
+        self._nfc_file = card
         self._current_path = path
         self._modified = False
         self._undo_stack.clear()
@@ -845,9 +854,13 @@ class MicroELApp(tk.Tk):
 
     def _save_file_as(self):
         path = filedialog.asksaveasfilename(
-            title="Save NFC file",
+            title="Save card file",
             defaultextension=".nfc",
-            filetypes=[("NFC files", "*.nfc"), ("All files", "*.*")]
+            filetypes=[
+                ("NFC files", "*.nfc"),
+                ("MCT files", "*.mct"),
+                ("All files", "*.*"),
+            ]
         )
         if not path:
             return
@@ -860,7 +873,11 @@ class MicroELApp(tk.Tk):
             return
         new_hex = parsed_to_hex_string(self._parsed_data)
         if self._nfc_file is None:
-            self._nfc_file = NFCFile.create_minimal(self._current_block)
+            ext = os.path.splitext(path)[1].lower()
+            if ext == ".mct":
+                self._nfc_file = MCTFile.create_minimal(self._current_block)
+            else:
+                self._nfc_file = NFCFile.create_minimal(self._current_block)
         try:
             self._nfc_file.set_block_hex(new_hex, self._current_block)
             self._nfc_file.save(path)
